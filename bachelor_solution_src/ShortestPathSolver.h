@@ -101,6 +101,13 @@ private:
     /// the goal without crossing the water
     std::vector<Point> UnblockVehicleFromWater(int dirIndex);
 
+    /// When unblocking the vehicle from the water
+    /// move toward the water area banks either by
+    /// updating the direction with clokwise or
+    /// counter clock wise rotation
+    int ClockWiseUpdate(Point& currPoint);
+    int CounterClockWiseUpdate(Point& currPoint);
+
     /// Compute the time-based metric of the manidfold
     /// at the input point
     double ComputeManifoldMetric(Point currPoint, Vector<double, 2> dX, Vector<double, 2> dZ);
@@ -108,9 +115,6 @@ private:
     /// Compute the best direction to take in order to
     /// locally minimize the manifold metric
     int ComputeBestDirection(Point currPoint);
-
-    bool ClockWiseUpdate(Point& currPoint);
-    bool CounterClockWiseUpdate(Point& currPoint);
 };
 
 #endif // SHORTEST_PATH_SOLVER_H

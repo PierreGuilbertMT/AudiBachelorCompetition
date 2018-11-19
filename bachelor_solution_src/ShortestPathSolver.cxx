@@ -27,6 +27,13 @@
 // LOCAL
 #include "ShortestPathSolver.h"
 
+enum UnblockingStatus
+{
+    ContitnueUnblocking = 0,
+    Unblocked = 1,
+    DefinitivelyBlocked = 2
+};
+
 int clockwiseIncrIndex(int prevIndex);
 int counterClockwiseIncrIndex(int prevIndex);
 
@@ -62,7 +69,7 @@ void SmartVehicle::FindGeodesic()
 {
     bool shouldContinue = true;
     unsigned int count = 0;
-    unsigned int maxCount = 2100;
+    unsigned int maxCount = 2500;
 
     // loop to find the geodesic
     while (count < maxCount)
@@ -89,11 +96,23 @@ void SmartVehicle::FindGeodesic()
         if (this->Elevation.IsWater(nextPoint[0], nextPoint[1]))
         {
             std::vector<Point> unblockPath = this->UnblockVehicleFromWater(dirIndex);
+            if (unblockPath.size() == 0)
+            {
+                std::cout << "Vehicle blocked by water, end of the algorithm" << std::endl;
+                break;
+            }
+
             for (unsigned int i = 0; i < unblockPath.size(); ++i)
             {
+                // unavailable the taken path
+                this->Elevation.SetAvailable(unblockPath[i][0], unblockPath[i][1], 1);
+
+                // add it to the path
                 this->VehiclePath.push_back(unblockPath[i]);
             }
             this->CurrentPoint = unblockPath[unblockPath.size() - 1];
+            std::cout << "Length of the path: " << unblockPath.size() << std::endl;
+            break;
         }
         else
         {
@@ -109,6 +128,10 @@ void SmartVehicle::FindGeodesic()
 
         // increase count
         count++;
+        if (!(count < maxCount))
+        {
+            std::cout << "Algorithm stopped because too much iteration" << std::endl;
+        }
     }
 }
 
@@ -179,8 +202,7 @@ double SmartVehicle::ComputeManifoldMetric(Point currPoint, Vector<double, 2> dX
 //-------------------------------------------------------------------------
 std::vector<Point> SmartVehicle::UnblockVehicleFromWater(int dirIndex)
 {
-    std::cout << "Start Unblocking" << std::endl;
-    // We will go along the both side of the water area
+    // We will go along both side of the water area
     // and see what is the correct path to unblock the vehicle
     std::vector<Point> path1, path2;
     Point currPoint1 = this->CurrentPoint;
@@ -190,46 +212,81 @@ std::vector<Point> SmartVehicle::UnblockVehicleFromWater(int dirIndex)
 
     bool shouldContinue = true;
     int count = 0;
+
+    unsigned int unblockCount1 = 0;
+    unsigned int unblockCount2 = 0;
+    unsigned int maxUnblockCount = 100;
+
     while (shouldContinue)
     {
+        std::cout << "============= " << count << " =========" << std::endl;
         // Path 1 continuation
-        bool isUnblock1 = this->ClockWiseUpdate(currPoint1);
+        std::cout << "currPoint1 Before: " << currPoint1.toString() << std::endl;
+        int unblockStatus1 = this->ClockWiseUpdate(currPoint1);
+        std::cout << "currPoint1 After: " << currPoint1.toString() << std::endl;
+        this->Elevation.SetAvailable(currPoint1[0], currPoint1[1], 1);
         path1.push_back(currPoint1);
 
         // Path 2
         // change direction in counter-closkwise rotation
-        bool isUnblock2 = this->CounterClockWiseUpdate(currPoint2);
+        std::cout << "currPoint2 Before: " << currPoint2.toString() << std::endl;
+        int unblockStatus2 = this->CounterClockWiseUpdate(currPoint2);
+        std::cout << "currPoint2 Before: " << currPoint2.toString() << std::endl;
+        this->Elevation.SetAvailable(currPoint2[0], currPoint2[1], 1);
         path2.push_back(currPoint2);
 
-        if (isUnblock1)
+        // We want the vehicle to be definitively unblocked
+        // before considering as being unblocked
+        if (unblockStatus1 == UnblockingStatus::Unblocked)
+        {
+            unblockCount1++;
+        }
+        if (unblockStatus2 == UnblockingStatus::Unblocked)
+        {
+            unblockCount2++;
+        }
+
+        if (unblockCount1 > maxUnblockCount)
             return path1;
 
-        if (isUnblock2)
+        if (unblockCount2 > maxUnblockCount)
             return path2;
 
+        if ((unblockStatus1 == UnblockingStatus::DefinitivelyBlocked) &&
+            (unblockStatus2 == UnblockingStatus::DefinitivelyBlocked))
+        {
+            return std::vector<Point>();
+        }
+
         count++;
+        std::cout << std::endl << std::endl;
     }
 }
 
 //-------------------------------------------------------------------------
-bool SmartVehicle::ClockWiseUpdate(Point& currPoint)
+int SmartVehicle::ClockWiseUpdate(Point& currPoint)
 {
     // First, compute the direction we would like to take
     int wantedDir = this->ComputeBestDirection(currPoint);
 
     // No direction can be taken
     if (wantedDir == -1)
-        return false;
+    {
+        std::cout << "Clockwise blocked because no wanted dir" << std::endl;
+        return UnblockingStatus::DefinitivelyBlocked;
+    }
 
     // then, check if that direction can be taken
     Point candidatePoint;
     candidatePoint[0] = currPoint[0] + this->directions[wantedDir].first;
     candidatePoint[1] = currPoint[1] + this->directions[wantedDir].second;
-    if (!this->Elevation.IsWater(candidatePoint[0], candidatePoint[1]))
+    if ((!this->Elevation.IsWater(candidatePoint[0], candidatePoint[1])) &&
+        (this->Elevation.GetAvailable(candidatePoint[0], candidatePoint[1]) == 0))
     {
         // Stop here, its ok
+        std::cout << "Clockwise wanted dir possible, stop" << std::endl;
         currPoint = candidatePoint;
-        return true;
+        return UnblockingStatus::Unblocked;
     }
 
     // If the direction can not be taken,
@@ -238,45 +295,65 @@ bool SmartVehicle::ClockWiseUpdate(Point& currPoint)
     int prevDir = wantedDir;
     int nextDir;
     int count = 0;
+
     while (shouldContinue)
     {
+        // Check that there is direction left
+        if (count >= 8)
+        {
+            std::cout << "Clockwise, all direction are not available or in water..." << std::endl;
+            return UnblockingStatus::DefinitivelyBlocked;
+        }
+
         nextDir = clockwiseIncrIndex(prevDir);
         prevDir = nextDir;
         candidatePoint[0] = currPoint[0] + this->directions[nextDir].first;
         candidatePoint[1] = currPoint[1] + this->directions[nextDir].second;
+
+        // check that the direction is available
+        if (this->Elevation.GetAvailable(candidatePoint[0], candidatePoint[1]) != 0)
+        {
+            count++;
+            continue;
+        }
+
+        // If the direction can be taken, take it
         if (!this->Elevation.IsWater(candidatePoint[0], candidatePoint[1]))
         {
             break;
         }
 
         count++;
-        if (count >= 8)
-            break;
     }
 
     currPoint = candidatePoint;
-    return false;
+    return UnblockingStatus::ContitnueUnblocking;
 }
 
 //-------------------------------------------------------------------------
-bool SmartVehicle::CounterClockWiseUpdate(Point& currPoint)
+int SmartVehicle::CounterClockWiseUpdate(Point& currPoint)
 {
     // First, compute the direction we would like to take
     int wantedDir = this->ComputeBestDirection(currPoint);
 
     // No direction can be taken
     if (wantedDir == -1)
-        return false;
+    {
+        std::cout << "Counter Clockwise blocked because no wanted dir" << std::endl;
+        return UnblockingStatus::DefinitivelyBlocked;
+    }
 
     // then, check if that direction can be taken
     Point candidatePoint;
     candidatePoint[0] = currPoint[0] + this->directions[wantedDir].first;
     candidatePoint[1] = currPoint[1] + this->directions[wantedDir].second;
-    if (!this->Elevation.IsWater(candidatePoint[0], candidatePoint[1]))
+    if ((!this->Elevation.IsWater(candidatePoint[0], candidatePoint[1])) &&
+        (this->Elevation.GetAvailable(candidatePoint[0], candidatePoint[1]) == 0))
     {
         // Stop here, its ok
+        std::cout << "Counter Clockwise wanted dir possible, stop" << std::endl;
         currPoint = candidatePoint;
-        return true;
+        return UnblockingStatus::Unblocked;
     }
 
     // If the direction can not be taken,
@@ -285,24 +362,39 @@ bool SmartVehicle::CounterClockWiseUpdate(Point& currPoint)
     int prevDir = wantedDir;
     int nextDir;
     int count = 0;
+
     while (shouldContinue)
     {
+        // Check that there is direction left
+        if (count >= 8)
+        {
+            std::cout << "Counter Clockwise, all direction are not available or in water..." << std::endl;
+            return UnblockingStatus::DefinitivelyBlocked;
+        }
+
         nextDir = counterClockwiseIncrIndex(prevDir);
         prevDir = nextDir;
         candidatePoint[0] = currPoint[0] + this->directions[nextDir].first;
         candidatePoint[1] = currPoint[1] + this->directions[nextDir].second;
+
+        // check that the direction is available
+        if (this->Elevation.GetAvailable(candidatePoint[0], candidatePoint[1]) != 0)
+        {
+            count++;
+            continue;
+        }
+
+        // If the direction can be taken, take it
         if (!this->Elevation.IsWater(candidatePoint[0], candidatePoint[1]))
         {
             break;
         }
 
         count++;
-        if (count >= 8)
-            break;
     }
 
     currPoint = candidatePoint;
-    return false;
+    return UnblockingStatus::ContitnueUnblocking;
 }
 
 //-------------------------------------------------------------------------
