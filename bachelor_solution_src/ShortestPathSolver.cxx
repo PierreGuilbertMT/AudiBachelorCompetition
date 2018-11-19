@@ -38,13 +38,9 @@ int clockwiseIncrIndex(int prevIndex);
 int counterClockwiseIncrIndex(int prevIndex);
 
 //-------------------------------------------------------------------------
-SmartVehicle::SmartVehicle(Point start, Point mid, Point end, ElevationMap argElevation)
+SmartVehicle::SmartVehicle(ElevationMap argElevation)
 {
     // initialization
-    this->VehicleStart = start;
-    this->VehicleGoal = mid;
-    this->VehicleEnd = end;
-    this->CurrentPoint = start;
     this->Elevation = argElevation;
 
     // direction in 8-neighborhood
@@ -65,14 +61,18 @@ std::vector<Point> SmartVehicle::GetVehiclePath()
 }
 
 //-------------------------------------------------------------------------
-void SmartVehicle::FindGeodesic()
+void SmartVehicle::FindGeodesic(Point start, Point end)
 {
+    this->VehicleStart = start;
+    this->VehicleGoal = end;
+    this->CurrentPoint = start;
+
     bool shouldContinue = true;
     unsigned int count = 0;
-    unsigned int maxCount = 3000;
+    unsigned int maxCount = 15000;
 
     // loop to find the geodesic
-    while (count < maxCount)
+    while (shouldContinue)
     {
         int dirIndex = this->ComputeBestDirection(this->CurrentPoint);
 
@@ -111,8 +111,6 @@ void SmartVehicle::FindGeodesic()
                 this->VehiclePath.push_back(unblockPath[i]);
             }
             this->CurrentPoint = unblockPath[unblockPath.size() - 1];
-            std::cout << "Length of the path: " << unblockPath.size() << std::endl;
-            //break;
         }
         else
         {
@@ -124,13 +122,18 @@ void SmartVehicle::FindGeodesic()
         this->Elevation.SetAvailable(this->CurrentPoint[0], this->CurrentPoint[1], 1);
 
         // check if the algorithm should continue
-        shouldContinue = !((this->CurrentPoint[0] == this->VehicleGoal[0]) && (this->CurrentPoint[1] == this->VehicleEnd[1]));
+        shouldContinue = !((this->CurrentPoint[0] == this->VehicleGoal[0]) && (this->CurrentPoint[1] == this->VehicleGoal[1]));
+        if (!shouldContinue)
+        {
+            std::cout << "Vehicle has reached the destination, end of the algorithm" << std::endl;
+        }
 
         // increase count
         count++;
         if (!(count < maxCount))
         {
             std::cout << "Algorithm stopped because too much iteration" << std::endl;
+            break;
         }
     }
 }
@@ -139,14 +142,14 @@ void SmartVehicle::FindGeodesic()
 int SmartVehicle::ComputeBestDirection(Point currPoint)
 {
     // compute the elevation gradient for this point
-    Vector<double, 2> dZ = this->Elevation.dZ(currPoint[0], currPoint[1]);
+    Vector2D dZ = this->Elevation.dZ(currPoint[0], currPoint[1]);
 
     double minDist = 10000000000;
     int dirIndex = -1;
     for (unsigned int neigh = 0; neigh < this->directions.size(); ++neigh)
     {
         // get the current direction
-        Vector<double, 2> dX;
+        Vector2D dX;
         dX[0] = this->directions[neigh].first;
         dX[1] = this->directions[neigh].second;
 
@@ -170,13 +173,13 @@ int SmartVehicle::ComputeBestDirection(Point currPoint)
 }
 
 //-------------------------------------------------------------------------
-double SmartVehicle::ComputeManifoldMetric(Point currPoint, Vector<double, 2> dX, Vector<double, 2> dZ)
+double SmartVehicle::ComputeManifoldMetric(Point currPoint, Vector2D dX, Vector2D dZ)
 {
     // moving direction of the car. It is defined as
     // [dx, dy, dX' * dZ], with dX = [dx, dy]. It is actually
     // the directional derivation of the parametrization function
     // of the S manifold along the direction dX
-    Vector<double, 3> ex;
+    Vector2D ex;
     ex[0] = dX[0]; ex[1] = dX[1]; ex[2] = dX.dot(dZ);
 
     // angle between the car direction and the ground plane
@@ -197,7 +200,7 @@ double SmartVehicle::ComputeManifoldMetric(Point currPoint, Vector<double, 2> dX
     dt = std::sqrt(dt / (v * v));
 
     // add a term to pull the vehicle toward its goal
-    Vector<double, 2> goalDir = this->VehicleGoal - currPoint;
+    Vector2D goalDir = this->VehicleGoal - currPoint;
     dt -= this->directionFactor * dX.dot(goalDir) / (goalDir.norm() * dX.norm());
 
     return dt;
@@ -222,11 +225,11 @@ std::vector<Point> SmartVehicle::UnblockVehicleFromWater(int dirIndex)
     unsigned int unblockCount2 = 0;
     unsigned int maxUnblockCount = 50;
 
-    unsigned int maxCount = 150;
+    unsigned int maxCount = 5000;
 
     unsigned int stabFilter1 = 0;
     unsigned int stabFilter2 = 0;
-    unsigned int requiredConsistentAngle = 10;
+    unsigned int requiredConsistentAngle = 15;
 
     while (shouldContinue)
     {
@@ -245,7 +248,7 @@ std::vector<Point> SmartVehicle::UnblockVehicleFromWater(int dirIndex)
         previousDirIndex1 = counterClockwiseIncrIndex(NextIndex);
         previousDirIndex1 = counterClockwiseIncrIndex(previousDirIndex1);
 
-        Vector<double, 2> dir1, goalDir1, inputDir1;
+        Vector2D dir1, goalDir1, inputDir1;
         dir1[0] = this->directions[previousDirIndex1].first;
         dir1[1] = this->directions[previousDirIndex1].second;
         goalDir1 = this->VehicleGoal - currPoint1;
@@ -266,7 +269,8 @@ std::vector<Point> SmartVehicle::UnblockVehicleFromWater(int dirIndex)
         {
             return path1;
         }
-        /*// COUNTER CLOCK WISE
+
+        // COUNTER CLOCK WISE
         // Get the next index
         NextIndex = FreemanCounterClockWiseIncr(currPoint2, previousDirIndex2);
         // add the point
@@ -275,22 +279,32 @@ std::vector<Point> SmartVehicle::UnblockVehicleFromWater(int dirIndex)
         previousDirIndex2 = clockwiseIncrIndex(NextIndex);
         previousDirIndex2 = clockwiseIncrIndex(previousDirIndex2);
 
-        Vector<double, 2> dir2, goalDir2;
+        Vector2D dir2, goalDir2, inputDir2;
         dir2[0] = this->directions[previousDirIndex2].first;
         dir2[1] = this->directions[previousDirIndex2].second;
         goalDir2 = this->VehicleGoal - currPoint2;
-        double cosA2 = goalDir2.dot(dir2) / (goalDir2.norm() * dir2.norm());
+        inputDir2 = intputPoint - currPoint2;
+        cosA1 = goalDir2.dot(dir2) / (goalDir2.norm() * dir2.norm());
+        cosA2 = inputDir2.dot(dir2) / (inputDir2.norm() * dir2.norm());
 
-        if (cosA2 > 0)
+        if (cosA1 < 0 && cosA2 > 0)
         {
-            std::cout << "Unblocked by following using counter clockwise" << std::endl;
-            return path1;
-        }*/
+            stabFilter2++;
+        }
+        else
+        {
+            stabFilter2 = 0;
+        }
+
+        if (stabFilter2 >= requiredConsistentAngle)
+        {
+            return path2;
+        }
 
         count++;
     }
     
-    return path1;
+    return std::vector<Point>();
 }
 
 //-------------------------------------------------------------------------
@@ -310,6 +324,9 @@ int SmartVehicle::FreemanClockWiseIncr(Point& currPoint, int prevIndex)
         {
             break;
         }
+
+        if (nextIndex == prevIndex)
+            break;
     }
 
     currPoint = candidatePoint;
@@ -333,144 +350,13 @@ int SmartVehicle::FreemanCounterClockWiseIncr(Point& currPoint, int prevIndex)
         {
             break;
         }
+
+        if (nextIndex == prevIndex)
+            break;
     }
 
     currPoint = candidatePoint;
     return nextIndex;
-}
-
-//-------------------------------------------------------------------------
-int SmartVehicle::ClockWiseUpdate(Point& currPoint)
-{
-    // First, compute the direction we would like to take
-    int wantedDir = this->ComputeBestDirection(currPoint);
-
-    // No direction can be taken
-    if (wantedDir == -1)
-    {
-        std::cout << "Clockwise blocked because no wanted dir" << std::endl;
-        return UnblockingStatus::DefinitivelyBlocked;
-    }
-
-    // then, check if that direction can be taken
-    Point candidatePoint;
-    candidatePoint[0] = currPoint[0] + this->directions[wantedDir].first;
-    candidatePoint[1] = currPoint[1] + this->directions[wantedDir].second;
-    if ((!this->Elevation.CanBeCrossed(candidatePoint[0], candidatePoint[1])) &&
-        (this->Elevation.GetAvailable(candidatePoint[0], candidatePoint[1]) == 0))
-    {
-        // Stop here, its ok
-        std::cout << "Clockwise wanted dir possible, stop" << std::endl;
-        currPoint = candidatePoint;
-        return UnblockingStatus::Unblocked;
-    }
-
-    // If the direction can not be taken,
-    // change direction in clockwise rotation
-    bool shouldContinue = true;
-    int prevDir = wantedDir;
-    int nextDir;
-    int count = 0;
-
-    while (shouldContinue)
-    {
-        // Check that there is direction left
-        if (count >= 8)
-        {
-            std::cout << "Clockwise, all direction are not available or in water..." << std::endl;
-            return UnblockingStatus::DefinitivelyBlocked;
-        }
-
-        nextDir = clockwiseIncrIndex(prevDir);
-        prevDir = nextDir;
-        candidatePoint[0] = currPoint[0] + this->directions[nextDir].first;
-        candidatePoint[1] = currPoint[1] + this->directions[nextDir].second;
-
-        // check that the direction is available
-        if (this->Elevation.GetAvailable(candidatePoint[0], candidatePoint[1]) != 0)
-        {
-            count++;
-            continue;
-        }
-
-        // If the direction can be taken, take it
-        if (!this->Elevation.CanBeCrossed(candidatePoint[0], candidatePoint[1]))
-        {
-            break;
-        }
-
-        count++;
-    }
-
-    currPoint = candidatePoint;
-    return UnblockingStatus::ContitnueUnblocking;
-}
-
-//-------------------------------------------------------------------------
-int SmartVehicle::CounterClockWiseUpdate(Point& currPoint)
-{
-    // First, compute the direction we would like to take
-    int wantedDir = this->ComputeBestDirection(currPoint);
-
-    // No direction can be taken
-    if (wantedDir == -1)
-    {
-        std::cout << "Counter Clockwise blocked because no wanted dir" << std::endl;
-        return UnblockingStatus::DefinitivelyBlocked;
-    }
-
-    // then, check if that direction can be taken
-    Point candidatePoint;
-    candidatePoint[0] = currPoint[0] + this->directions[wantedDir].first;
-    candidatePoint[1] = currPoint[1] + this->directions[wantedDir].second;
-    if ((!this->Elevation.CanBeCrossed(candidatePoint[0], candidatePoint[1])) &&
-        (this->Elevation.GetAvailable(candidatePoint[0], candidatePoint[1]) == 0))
-    {
-        // Stop here, its ok
-        std::cout << "Counter Clockwise wanted dir possible, stop" << std::endl;
-        currPoint = candidatePoint;
-        return UnblockingStatus::Unblocked;
-    }
-
-    // If the direction can not be taken,
-    // change direction in clockwise rotation
-    bool shouldContinue = true;
-    int prevDir = wantedDir;
-    int nextDir;
-    int count = 0;
-
-    while (shouldContinue)
-    {
-        // Check that there is direction left
-        if (count >= 8)
-        {
-            std::cout << "Counter Clockwise, all direction are not available or in water..." << std::endl;
-            return UnblockingStatus::DefinitivelyBlocked;
-        }
-
-        nextDir = counterClockwiseIncrIndex(prevDir);
-        prevDir = nextDir;
-        candidatePoint[0] = currPoint[0] + this->directions[nextDir].first;
-        candidatePoint[1] = currPoint[1] + this->directions[nextDir].second;
-
-        // check that the direction is available
-        if (this->Elevation.GetAvailable(candidatePoint[0], candidatePoint[1]) != 0)
-        {
-            count++;
-            continue;
-        }
-
-        // If the direction can be taken, take it
-        if (!this->Elevation.CanBeCrossed(candidatePoint[0], candidatePoint[1]))
-        {
-            break;
-        }
-
-        count++;
-    }
-
-    currPoint = candidatePoint;
-    return UnblockingStatus::ContitnueUnblocking;
 }
 
 //-------------------------------------------------------------------------

@@ -64,11 +64,6 @@ double ElevationMap::Z(int x, int y)
     if (!CheckCoord(x, y))
         return Z;
 
-    /*// Check that the ground does not caontain water
-    if ((this->overrides[y * this->W + x] == 16) ||
-        (this->overrides[y * this->W + x] == 64))
-        return Z;*/
-
     // everything is fine, return elevation
     return static_cast<double>(this->elevation[y * this->W + x]);
 }

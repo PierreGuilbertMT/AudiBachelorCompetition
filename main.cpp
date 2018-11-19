@@ -113,18 +113,6 @@ bool donut(int x, int y, int x1, int y1)
 //-------------------------------------------------------------------------
 int main(int argc, char** argv)
 {
-    Vector<double, 3> u, v;
-    u[0] = 10;
-    u[1] = -12;
-
-    v[0] = 6;
-    v[1] = 11;
-    std::cout << (u + v).toString() << std::endl;
-    std::cout << (u - v).toString() << std::endl;
-    std::cout << u.dot(v) << std::endl;
-    std::cout << u.distance(v) << std::endl;
-
-
     // expected size of the input file
     const size_t expectedFileSize = IMAGE_DIM * IMAGE_DIM;
     
@@ -153,8 +141,9 @@ int main(int argc, char** argv)
     ElevationMap Elevation(elevation, overrides, IMAGE_DIM, IMAGE_DIM);
 
     // Smart Vehicle
-    SmartVehicle vehicle(startPoint, goalPoint, endPoint, Elevation);
-    vehicle.FindGeodesic();
+    SmartVehicle vehicle(Elevation);
+    vehicle.FindGeodesic(startPoint, goalPoint);
+    vehicle.FindGeodesic(goalPoint, endPoint);
 
     // Update elevation map
     std::vector<Vector<double, 2> > vehiclePath = vehicle.GetVehiclePath();

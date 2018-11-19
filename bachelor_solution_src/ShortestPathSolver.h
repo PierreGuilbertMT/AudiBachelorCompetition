@@ -48,7 +48,7 @@ typedef Vector<double, 2> Vector2D;
 *
 *        this manifold can be upgraded to a Riemannian manifold
 *        by crafting a time-based metric. To know more about that,
-*        please find all the information in the document: 
+*        please find all the information in the document: SolutionPresentation.pdf
 *
 * \author $Author: Pierre Guilbert $
 * \version $Revision: 1.0 $
@@ -59,11 +59,11 @@ class SmartVehicle
 {
 public:
     /// Constructor defining the keypoints and elevation map
-    SmartVehicle(Point start, Point mid, Point end, ElevationMap argElevation);
+    SmartVehicle(ElevationMap argElevation);
 
     /// Find the geodesic of the time-based Riemannian
     /// manifold {[x, y, Z(x, y)]}
-    void FindGeodesic();
+    void FindGeodesic(Point start, Point end);
 
     /// return the path of the vehicle
     std::vector<Point> GetVehiclePath();
@@ -71,14 +71,13 @@ public:
 private:
     /// Keypoints that must be reached
     Point VehicleStart;
-    Point VehicleEnd;
     Point VehicleGoal;
 
     /// Path that has been taken
-    std::vector<Vector<double, 2> > VehiclePath;
+    std::vector<Point> VehiclePath;
 
     /// Current point
-    Vector<double, 2> CurrentPoint;
+    Point CurrentPoint;
 
     /// maximum velocity of the vehicle in pixel/s
     double vmax = 1.0;
@@ -91,7 +90,7 @@ private:
 
     /// impact of taking a direction that is not
     /// the correct one on the metric
-    double directionFactor = 2.0;
+    double directionFactor = 0.9;
 
     /// impact of crossing a river on the velocity
     /// of the car. This is a multiplicative factor
@@ -109,20 +108,13 @@ private:
     /// the goal without crossing the water
     std::vector<Point> UnblockVehicleFromWater(int dirIndex);
 
-    /// When unblocking the vehicle from the water
-    /// move toward the water area banks either by
-    /// updating the direction with clokwise or
-    /// counter clock wise rotation
-    int ClockWiseUpdate(Point& currPoint);
-    int CounterClockWiseUpdate(Point& currPoint);
-
     /// Freeman coding to move along the water area banks
     int FreemanClockWiseIncr(Point& currPoint, int prevIndex);
     int FreemanCounterClockWiseIncr(Point& currPoint, int prevIndex);
 
     /// Compute the time-based metric of the manidfold
     /// at the input point
-    double ComputeManifoldMetric(Point currPoint, Vector<double, 2> dX, Vector<double, 2> dZ);
+    double ComputeManifoldMetric(Point currPoint, Vector2D dX, Vector2D dZ);
 
     /// Compute the best direction to take in order to
     /// locally minimize the manifold metric
