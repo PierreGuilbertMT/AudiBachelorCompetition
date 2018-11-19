@@ -28,6 +28,8 @@
 #define GEOMETRIC_TOOLS_H
 
 // STD
+#include <iostream>
+#include <string>
 #include <vector>
 #include <cmath>
 
