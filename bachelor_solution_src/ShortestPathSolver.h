@@ -116,6 +116,10 @@ private:
     int ClockWiseUpdate(Point& currPoint);
     int CounterClockWiseUpdate(Point& currPoint);
 
+    /// Freeman coding to move along the water area banks
+    int FreemanClockWiseIncr(Point& currPoint, int prevIndex);
+    int FreemanCounterClockWiseIncr(Point& currPoint, int prevIndex);
+
     /// Compute the time-based metric of the manidfold
     /// at the input point
     double ComputeManifoldMetric(Point currPoint, Vector<double, 2> dX, Vector<double, 2> dZ);

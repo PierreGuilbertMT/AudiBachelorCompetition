@@ -211,6 +211,7 @@ std::vector<Point> SmartVehicle::UnblockVehicleFromWater(int dirIndex)
     std::vector<Point> path1, path2;
     Point currPoint1 = this->CurrentPoint;
     Point currPoint2 = this->CurrentPoint;
+    Point intputPoint = this->CurrentPoint;
     int previousDirIndex1 = dirIndex;
     int previousDirIndex2 = dirIndex;
 
@@ -221,57 +222,121 @@ std::vector<Point> SmartVehicle::UnblockVehicleFromWater(int dirIndex)
     unsigned int unblockCount2 = 0;
     unsigned int maxUnblockCount = 50;
 
+    unsigned int maxCount = 150;
+
+    unsigned int stabFilter1 = 0;
+    unsigned int stabFilter2 = 0;
+    unsigned int requiredConsistentAngle = 10;
+
     while (shouldContinue)
     {
-        std::cout << "============= " << count << " =========" << std::endl;
-        // Path 1 continuation
-        std::cout << "currPoint1 Before: " << currPoint1.toString() << std::endl;
-        int unblockStatus1 = this->ClockWiseUpdate(currPoint1);
-        std::cout << "currPoint1 After: " << currPoint1.toString() << std::endl;
-        this->Elevation.SetAvailable(currPoint1[0], currPoint1[1], 1);
+        if (count > maxCount)
+        {
+            std::cout << "Max count for unblocking" << std::endl;
+            break;
+        }
+
+        // CLOCK WISE
+        // Get the next index
+        int NextIndex = FreemanClockWiseIncr(currPoint1, previousDirIndex1);
+        // add the point
         path1.push_back(currPoint1);
+        // decrease dir by two for freeman coding
+        previousDirIndex1 = counterClockwiseIncrIndex(NextIndex);
+        previousDirIndex1 = counterClockwiseIncrIndex(previousDirIndex1);
 
-        // Path 2
-        // change direction in counter-closkwise rotation
-        std::cout << "currPoint2 Before: " << currPoint2.toString() << std::endl;
-        int unblockStatus2 = UnblockingStatus::DefinitivelyBlocked;// = this->CounterClockWiseUpdate(currPoint2);
-        std::cout << "currPoint2 Before: " << currPoint2.toString() << std::endl;
-        //this->Elevation.SetAvailable(currPoint2[0], currPoint2[1], 1);
-        path2.push_back(currPoint2);
+        Vector<double, 2> dir1, goalDir1, inputDir1;
+        dir1[0] = this->directions[previousDirIndex1].first;
+        dir1[1] = this->directions[previousDirIndex1].second;
+        goalDir1 = this->VehicleGoal - currPoint1;
+        inputDir1 = intputPoint - currPoint1;
+        double cosA1 = goalDir1.dot(dir1) / (goalDir1.norm() * dir1.norm());
+        double cosA2 = inputDir1.dot(dir1) / (inputDir1.norm() * dir1.norm());
 
-        // We want the vehicle to be definitively unblocked
-        // before considering as being unblocked
-        if (unblockStatus1 == UnblockingStatus::Unblocked)
+        if (cosA1 < 0 && cosA2 > 0)
         {
-            unblockCount1++;
+            stabFilter1++;
         }
-        if (unblockStatus2 == UnblockingStatus::Unblocked)
+        else
         {
-            unblockCount2++;
+            stabFilter1 = 0;
         }
 
-        if (unblockCount1 > maxUnblockCount)
+        if (stabFilter1 >= requiredConsistentAngle)
         {
-            std::cout << "Unblocked from water !" << std::endl;
             return path1;
         }
+        /*// COUNTER CLOCK WISE
+        // Get the next index
+        NextIndex = FreemanCounterClockWiseIncr(currPoint2, previousDirIndex2);
+        // add the point
+        path2.push_back(currPoint2);
+        // decrease dir by two for freeman coding
+        previousDirIndex2 = clockwiseIncrIndex(NextIndex);
+        previousDirIndex2 = clockwiseIncrIndex(previousDirIndex2);
 
-        if (unblockCount2 > maxUnblockCount)
-        {
-            std::cout << "Unblocked from water !" << std::endl;
-            return path2;
-        }
+        Vector<double, 2> dir2, goalDir2;
+        dir2[0] = this->directions[previousDirIndex2].first;
+        dir2[1] = this->directions[previousDirIndex2].second;
+        goalDir2 = this->VehicleGoal - currPoint2;
+        double cosA2 = goalDir2.dot(dir2) / (goalDir2.norm() * dir2.norm());
 
-        if ((unblockStatus1 == UnblockingStatus::DefinitivelyBlocked) &&
-            (unblockStatus2 == UnblockingStatus::DefinitivelyBlocked))
+        if (cosA2 > 0)
         {
-            std::cout << "Unblocking stopped because vehicle definitively blocked" << std::endl;
-            return std::vector<Point>();
-        }
+            std::cout << "Unblocked by following using counter clockwise" << std::endl;
+            return path1;
+        }*/
 
         count++;
-        std::cout << std::endl << std::endl;
     }
+    
+    return path1;
+}
+
+//-------------------------------------------------------------------------
+int SmartVehicle::FreemanClockWiseIncr(Point& currPoint, int prevIndex)
+{
+    Point candidatePoint;
+    int nextIndex = prevIndex;
+    bool ok = false;
+    while (!ok)
+    {
+        nextIndex = clockwiseIncrIndex(nextIndex);
+        candidatePoint[0] = currPoint[0] + this->directions[nextIndex].first;
+        candidatePoint[1] = currPoint[1] + this->directions[nextIndex].second;
+
+        // check that we can go on this location
+        if (!this->Elevation.CanBeCrossed(candidatePoint[0], candidatePoint[1]))
+        {
+            break;
+        }
+    }
+
+    currPoint = candidatePoint;
+    return nextIndex;
+}
+
+//-------------------------------------------------------------------------
+int SmartVehicle::FreemanCounterClockWiseIncr(Point& currPoint, int prevIndex)
+{
+    Point candidatePoint;
+    int nextIndex = prevIndex;
+    bool ok = false;
+    while (!ok)
+    {
+        nextIndex = counterClockwiseIncrIndex(nextIndex);
+        candidatePoint[0] = currPoint[0] + this->directions[nextIndex].first;
+        candidatePoint[1] = currPoint[1] + this->directions[nextIndex].second;
+
+        // check that we can go on this location
+        if (!this->Elevation.CanBeCrossed(candidatePoint[0], candidatePoint[1]))
+        {
+            break;
+        }
+    }
+
+    currPoint = candidatePoint;
+    return nextIndex;
 }
 
 //-------------------------------------------------------------------------
