@@ -63,8 +63,11 @@ public:
     uint8_t GetAvailable(int x, int y);
     void SetAvailable(int x, int y, uint8_t argAvailable);
 
-    /// indicate if the ground is water at the input point
-    bool IsWater(int x, int y);
+    /// indicate if the ground can be crossed at the input point
+    bool CanBeCrossed(int x, int y);
+
+    /// indicate if the ground is a river
+    bool IsRiver(int x, int y);
 
 private:
     /// dimension of the elevation map support

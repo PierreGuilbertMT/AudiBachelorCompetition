@@ -74,15 +74,27 @@ double ElevationMap::Z(int x, int y)
 }
 
 //-------------------------------------------------------------------------
-bool ElevationMap::IsWater(int x, int y)
+bool ElevationMap::IsRiver(int x, int y)
 {
     // Check that the coordinates are in the boundaries
     if (!CheckCoord(x, y))
         return false;
 
-    bool isWater = (this->overrides[y * this->W + x] & (16 | 65)) ||
-                   this->elevation[y * this->W + x] == 0;
+    bool isWater = (this->overrides[y * this->W + x] & (16));
     return isWater;
+}
+
+//-------------------------------------------------------------------------
+bool ElevationMap::CanBeCrossed(int x, int y)
+{
+    // Check that the coordinates are in the boundaries
+    if (!CheckCoord(x, y))
+        return false;
+
+    bool canBeCrossed = (this->overrides[y * this->W + x] & (64)) ||
+                   this->elevation[y * this->W + x] == 0;
+
+    return canBeCrossed;
 }
 
 //-------------------------------------------------------------------------

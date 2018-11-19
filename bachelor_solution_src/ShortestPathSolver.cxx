@@ -69,7 +69,7 @@ void SmartVehicle::FindGeodesic()
 {
     bool shouldContinue = true;
     unsigned int count = 0;
-    unsigned int maxCount = 2500;
+    unsigned int maxCount = 3000;
 
     // loop to find the geodesic
     while (count < maxCount)
@@ -93,7 +93,7 @@ void SmartVehicle::FindGeodesic()
         nextPoint[1] = this->CurrentPoint[1] + this->directions[dirIndex].second;
 
         // unblock the rover
-        if (this->Elevation.IsWater(nextPoint[0], nextPoint[1]))
+        if (this->Elevation.CanBeCrossed(nextPoint[0], nextPoint[1]))
         {
             std::vector<Point> unblockPath = this->UnblockVehicleFromWater(dirIndex);
             if (unblockPath.size() == 0)
@@ -112,7 +112,7 @@ void SmartVehicle::FindGeodesic()
             }
             this->CurrentPoint = unblockPath[unblockPath.size() - 1];
             std::cout << "Length of the path: " << unblockPath.size() << std::endl;
-            break;
+            //break;
         }
         else
         {
@@ -185,6 +185,10 @@ double SmartVehicle::ComputeManifoldMetric(Point currPoint, Vector<double, 2> dX
     // vehicle velocity
     double v = this->vmax - this->slopeFactor * sinAngle;
 
+    // impact on crossing the river on the velocity
+    if (this->Elevation.IsRiver(currPoint[0] + dX[0], currPoint[1] + dX[1]))
+        v = this->crossingRiverFactor * v;
+
     // time-based metric of the Riemannnian manifold
     // on which the car positions are lying.
     double dt = (1 + dZ[0] * dZ[0]) * dX[0] * dX[0];
@@ -194,7 +198,7 @@ double SmartVehicle::ComputeManifoldMetric(Point currPoint, Vector<double, 2> dX
 
     // add a term to pull the vehicle toward its goal
     Vector<double, 2> goalDir = this->VehicleGoal - currPoint;
-    dt -= dX.dot(goalDir) / (goalDir.norm() * dX.norm());
+    dt -= this->directionFactor * dX.dot(goalDir) / (goalDir.norm() * dX.norm());
 
     return dt;
 }
@@ -215,7 +219,7 @@ std::vector<Point> SmartVehicle::UnblockVehicleFromWater(int dirIndex)
 
     unsigned int unblockCount1 = 0;
     unsigned int unblockCount2 = 0;
-    unsigned int maxUnblockCount = 100;
+    unsigned int maxUnblockCount = 50;
 
     while (shouldContinue)
     {
@@ -230,9 +234,9 @@ std::vector<Point> SmartVehicle::UnblockVehicleFromWater(int dirIndex)
         // Path 2
         // change direction in counter-closkwise rotation
         std::cout << "currPoint2 Before: " << currPoint2.toString() << std::endl;
-        int unblockStatus2 = this->CounterClockWiseUpdate(currPoint2);
+        int unblockStatus2 = UnblockingStatus::DefinitivelyBlocked;// = this->CounterClockWiseUpdate(currPoint2);
         std::cout << "currPoint2 Before: " << currPoint2.toString() << std::endl;
-        this->Elevation.SetAvailable(currPoint2[0], currPoint2[1], 1);
+        //this->Elevation.SetAvailable(currPoint2[0], currPoint2[1], 1);
         path2.push_back(currPoint2);
 
         // We want the vehicle to be definitively unblocked
@@ -247,14 +251,21 @@ std::vector<Point> SmartVehicle::UnblockVehicleFromWater(int dirIndex)
         }
 
         if (unblockCount1 > maxUnblockCount)
+        {
+            std::cout << "Unblocked from water !" << std::endl;
             return path1;
+        }
 
         if (unblockCount2 > maxUnblockCount)
+        {
+            std::cout << "Unblocked from water !" << std::endl;
             return path2;
+        }
 
         if ((unblockStatus1 == UnblockingStatus::DefinitivelyBlocked) &&
             (unblockStatus2 == UnblockingStatus::DefinitivelyBlocked))
         {
+            std::cout << "Unblocking stopped because vehicle definitively blocked" << std::endl;
             return std::vector<Point>();
         }
 
@@ -280,7 +291,7 @@ int SmartVehicle::ClockWiseUpdate(Point& currPoint)
     Point candidatePoint;
     candidatePoint[0] = currPoint[0] + this->directions[wantedDir].first;
     candidatePoint[1] = currPoint[1] + this->directions[wantedDir].second;
-    if ((!this->Elevation.IsWater(candidatePoint[0], candidatePoint[1])) &&
+    if ((!this->Elevation.CanBeCrossed(candidatePoint[0], candidatePoint[1])) &&
         (this->Elevation.GetAvailable(candidatePoint[0], candidatePoint[1]) == 0))
     {
         // Stop here, its ok
@@ -318,7 +329,7 @@ int SmartVehicle::ClockWiseUpdate(Point& currPoint)
         }
 
         // If the direction can be taken, take it
-        if (!this->Elevation.IsWater(candidatePoint[0], candidatePoint[1]))
+        if (!this->Elevation.CanBeCrossed(candidatePoint[0], candidatePoint[1]))
         {
             break;
         }
@@ -347,7 +358,7 @@ int SmartVehicle::CounterClockWiseUpdate(Point& currPoint)
     Point candidatePoint;
     candidatePoint[0] = currPoint[0] + this->directions[wantedDir].first;
     candidatePoint[1] = currPoint[1] + this->directions[wantedDir].second;
-    if ((!this->Elevation.IsWater(candidatePoint[0], candidatePoint[1])) &&
+    if ((!this->Elevation.CanBeCrossed(candidatePoint[0], candidatePoint[1])) &&
         (this->Elevation.GetAvailable(candidatePoint[0], candidatePoint[1]) == 0))
     {
         // Stop here, its ok
@@ -385,7 +396,7 @@ int SmartVehicle::CounterClockWiseUpdate(Point& currPoint)
         }
 
         // If the direction can be taken, take it
-        if (!this->Elevation.IsWater(candidatePoint[0], candidatePoint[1]))
+        if (!this->Elevation.CanBeCrossed(candidatePoint[0], candidatePoint[1]))
         {
             break;
         }

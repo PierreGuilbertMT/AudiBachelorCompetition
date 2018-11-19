@@ -83,11 +83,19 @@ private:
     /// maximum velocity of the vehicle in pixel/s
     double vmax = 1.0;
 
-    /// impact of the slope on the behicle velocity
+    /// impact of the slope on the vehicle velocity
     /// as described in the provided document, the
     /// slopeFactor depend on the friction factor, the
     /// mass of the vehicle and the power of the engine
     double slopeFactor = 0.1;
+
+    /// impact of taking a direction that is not
+    /// the correct one on the metric
+    double directionFactor = 2.0;
+
+    /// impact of crossing a river on the velocity
+    /// of the car. This is a multiplicative factor
+    double crossingRiverFactor = 0.3;
 
     /// Elevationn map
     ElevationMap Elevation;
