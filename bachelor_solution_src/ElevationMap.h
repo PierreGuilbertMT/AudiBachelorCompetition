@@ -29,9 +29,11 @@
 
 // LOCAL
 #include "GeometricTools.h"
+
 // STD
 #include <iostream>
 #include <vector>
+#include <cmath>
 
 /**
 * \class ElevationMap

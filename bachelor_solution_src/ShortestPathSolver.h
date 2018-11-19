@@ -31,6 +31,9 @@
 #include "GeometricTools.h"
 #include "ElevationMap.h"
 
+// STD
+#include <cmath>
+
 // We make a difference between Point and Vector
 // since we are working within an affine space
 // algebraic structure

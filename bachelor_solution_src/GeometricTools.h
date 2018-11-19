@@ -29,6 +29,7 @@
 
 // STD
 #include <vector>
+#include <cmath>
 
 /**
 * \class Vector

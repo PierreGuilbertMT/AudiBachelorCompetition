@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 #include <exception>
+#include <cmath>
 
 #ifdef _MSC_VER
 static const char* PATH_SEP = "\\";
