@@ -89,7 +89,6 @@ void SmartVehicle::FindGeodesic()
         if (this->Elevation.IsWater(nextPoint[0], nextPoint[1]))
         {
             std::vector<Point> unblockPath = this->UnblockVehicleFromWater(dirIndex);
-            std::cout << "UNblocking path length: " << unblockPath.size() << std::endl;
             for (unsigned int i = 0; i < unblockPath.size(); ++i)
             {
                 this->VehiclePath.push_back(unblockPath[i]);
@@ -135,7 +134,7 @@ int SmartVehicle::ComputeBestDirection(Point currPoint)
         }
 
         // Compute the time-based manifold metric
-        double dt = this->ComputeManifoldMetric(this->CurrentPoint, dX, dZ);
+        double dt = this->ComputeManifoldMetric(currPoint, dX, dZ);
 
         if (dt < minDist)
         {
